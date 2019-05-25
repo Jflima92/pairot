@@ -1,0 +1,9 @@
+version: "3.3"
+
+services:
+  server:
+    image: vw/pairot
+    build:
+      context: ./server
+    ports:
+      - 8080:8080
