@@ -7,3 +7,22 @@ services:
       context: ./server
     ports:
       - 8080:8080
+    depends_on:
+      - mongodb
+
+  mongodb:
+    image: mongo:latest
+    restart: always
+    ports:
+      - 27017:27017
+    volumes:
+      - ./db:/docker-entrypoint-initdb.d
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_PASSWORD: vwdilab
+      MONGO_INITDB_DATABASE: pairot
+
+  mongo-seed:
+    build: ./db
+    links:
+      - mongodb
