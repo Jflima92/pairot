@@ -7,6 +7,7 @@ import (
 
 func Routes(m *mongodb.Connection) *chi.Mux {
 	router := chi.NewRouter()
-	router.Post("/", Pairing{Conn: m}.postHandler)
+	pairHandlers := Handler{processor: Processor{m}}
+	router.Post("/", pairHandlers.PostHandler)
 	return router
 }
