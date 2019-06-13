@@ -2,15 +2,22 @@ package mongodb
 
 import (
 	"context"
+	"fmt"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 	"log"
+	"os"
 )
 
 func NewConnection() *Connection {
 	m := new(Connection)
-	clientOptions := options.Client().ApplyURI("mongodb://jl:vwdilab@localhost:27017/pairot")
+	dbUsername := os.Getenv("MONGO_USERNAME")
+	dbPassword := os.Getenv("MONGO_PASSWORD")
+	dbName := os.Getenv("MONGO_DATABASE")
+	dbPort := os.Getenv("MONGO_PORT")
+	uri := fmt.Sprintf("mongodb://%s:%s@localhost:%s/%s", dbUsername, dbPassword, dbPort, dbName)
+	clientOptions := options.Client().ApplyURI(uri)
 	client, err := mongo.Connect(context.TODO(), clientOptions)
 
 	if err != nil {

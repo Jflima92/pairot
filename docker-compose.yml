@@ -7,6 +7,11 @@ services:
       context: ./server
     ports:
       - 8080:8080
+    environment:
+      MONGO_USERNAME: jl
+      MONGO_PASSWORD: pwd
+      MONGO_DATABASE: pairot
+      MONGO_PORT: 27017
     depends_on:
       - mongodb
 
