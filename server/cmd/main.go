@@ -1,18 +1,17 @@
 package main
 
 import (
-	"log"
-	"net/http"
-
 	"github.com/go-chi/chi"
 	"github.com/go-chi/chi/middleware"
 	"github.com/go-chi/render"
-
-	pair "pairot/features"
+	"log"
+	"net/http"
+	"pairot/features/pairing"
+	"pairot/persistence/mongodb"
 )
 
 // Routes method
-func Routes() *chi.Mux {
+func Routes(m *mongodb.Connection) *chi.Mux {
 	router := chi.NewRouter()
 	router.Use(
 		render.SetContentType(render.ContentTypeJSON), // Set content-Type headers as application/json
@@ -23,14 +22,15 @@ func Routes() *chi.Mux {
 	)
 
 	router.Route("/v1", func(r chi.Router) {
-		r.Mount("/api/pair", pair.Routes())
+		r.Mount("/api/pair", pairing.Routes(m))
 	})
 
 	return router
 }
 
 func main() {
-	router := Routes()
+	m := mongodb.NewConnection()
+	router := Routes(m)
 
 	walkFunc := func(method string, route string, handler http.Handler, middlewares ...func(http.Handler) http.Handler) error {
 		log.Printf("%s %s\n", method, route) // Walk and print out all routes
