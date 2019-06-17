@@ -10,7 +10,7 @@ type Handler struct {
 	processor Processor
 }
 
-func (h Handler) PostHandler(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) PostHandler(w http.ResponseWriter, r *http.Request) {
 	formErr := r.ParseForm()
 
 	if formErr != nil {
@@ -22,5 +22,5 @@ func (h Handler) PostHandler(w http.ResponseWriter, r *http.Request) {
 	render.JSON(w, r, res)
 }
 
-func (h Handler) getHandler(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) getHandler(w http.ResponseWriter, r *http.Request) {
 }
