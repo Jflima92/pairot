@@ -13,7 +13,7 @@ type Processor struct {
 	db persistence.DB
 }
 
-func (p Processor) Process(form url.Values) SlackResponse {
+func (p *Processor) Process(form url.Values) SlackResponse {
 	teamName := getTeamNameFromRequest(form)
 	dbTeam, err := p.db.FindTeamByName(teamName)
 

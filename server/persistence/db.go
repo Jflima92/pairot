@@ -5,3 +5,10 @@ type DB interface {
 	UpdateTeamMembers(teamName string, members interface{}) error
 	Decode (data []byte, val interface{}) error
 }
+
+type DBCredentials struct {
+	Username string
+	Password string
+	Database string
+	Port string
+}

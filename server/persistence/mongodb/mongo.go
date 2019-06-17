@@ -7,16 +7,12 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 	"log"
-	"os"
+	"pairot/persistence"
 )
 
-func NewConnection() *Connection {
+func NewConnection(credentials persistence.DBCredentials) persistence.DB {
 	m := new(Connection)
-	dbUsername := os.Getenv("MONGO_USERNAME")
-	dbPassword := os.Getenv("MONGO_PASSWORD")
-	dbName := os.Getenv("MONGO_DATABASE")
-	dbPort := os.Getenv("MONGO_PORT")
-	uri := fmt.Sprintf("mongodb://%s:%s@localhost:%s/%s", dbUsername, dbPassword, dbPort, dbName)
+	uri := fmt.Sprintf("mongodb://%s:%s@localhost:%s/%s", credentials.Username, credentials.Password, credentials.Port, credentials.Database)
 	clientOptions := options.Client().ApplyURI(uri)
 	client, err := mongo.Connect(context.TODO(), clientOptions)
 
@@ -38,11 +34,7 @@ type Connection struct {
 	conn *mongo.Client
 }
 
-func (c Connection) GetDatabase(s string) *mongo.Database{
-	return c.conn.Database(s)
-}
-
-func (c Connection) FindTeamByName(teamName string) ([]byte, error){
+func (c *Connection) FindTeamByName(teamName string) ([]byte, error){
 	db := c.conn.Database("pairot")
 	var collection = db.Collection("Teams")
 	filter := bson.D{{"name", teamName}}
@@ -53,11 +45,11 @@ func (c Connection) FindTeamByName(teamName string) ([]byte, error){
 	return b, nil
 }
 
-func (c Connection) Decode (data []byte, val interface{}) error {
+func (c *Connection) Decode (data []byte, val interface{}) error {
 	return bson.Unmarshal(data, val)
 }
 
-func (c Connection) UpdateTeamMembers(teamName string, members interface{}) error {
+func (c *Connection) UpdateTeamMembers(teamName string, members interface{}) error {
 	db := c.conn.Database("pairot")
 	var collection = db.Collection("Teams")
 	filter := bson.D{{"name", teamName}}

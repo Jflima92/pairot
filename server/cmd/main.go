@@ -6,30 +6,37 @@ import (
 	"github.com/go-chi/render"
 	"log"
 	"net/http"
+	"os"
 	"pairot/features/pairing"
+	"pairot/persistence"
 	"pairot/persistence/mongodb"
 )
 
 // Routes method
-func Routes(m *mongodb.Connection) *chi.Mux {
+func Routes(db persistence.DB) *chi.Mux {
 	router := chi.NewRouter()
 	router.Use(
 		render.SetContentType(render.ContentTypeJSON), // Set content-Type headers as application/json
-		middleware.Logger,          // Log API request calls
-		middleware.DefaultCompress, // Compress results, mostly gzipping assets and json
-		middleware.RedirectSlashes, // Redirect slashes to no slash URL versions
-		middleware.Recoverer,       // Recover from panics without crashing server
+		middleware.Logger,                             // Log API request calls
+		middleware.DefaultCompress,                    // Compress results, mostly gzipping assets and json
+		middleware.RedirectSlashes,                    // Redirect slashes to no slash URL versions
+		middleware.Recoverer,                          // Recover from panics without crashing server
 	)
 
 	router.Route("/v1", func(r chi.Router) {
-		r.Mount("/api/pair", pairing.Routes(m))
+		r.Mount("/api/pair", pairing.Routes(db))
 	})
 
 	return router
 }
 
 func main() {
-	m := mongodb.NewConnection()
+	m := mongodb.NewConnection(persistence.DBCredentials{
+		Username: os.Getenv("MONGO_USERNAME"),
+		Password: os.Getenv("MONGO_PASSWORD"),
+		Database: os.Getenv("MONGO_DATABASE"),
+		Port:     os.Getenv("MONGO_PORT"),
+	})
 	router := Routes(m)
 
 	walkFunc := func(method string, route string, handler http.Handler, middlewares ...func(http.Handler) http.Handler) error {

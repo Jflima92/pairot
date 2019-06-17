@@ -2,12 +2,12 @@ package pairing
 
 import (
 	"github.com/go-chi/chi"
-	"pairot/persistence/mongodb"
+	"pairot/persistence"
 )
 
-func Routes(m *mongodb.Connection) *chi.Mux {
+func Routes(db persistence.DB) *chi.Mux {
 	router := chi.NewRouter()
-	pairHandlers := Handler{processor: Processor{m}}
+	pairHandlers := Handler{processor: Processor{db}}
 	router.Post("/", pairHandlers.PostHandler)
 	return router
 }
