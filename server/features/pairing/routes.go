@@ -7,7 +7,7 @@ import (
 
 func Routes(db persistence.DB) *chi.Mux {
 	router := chi.NewRouter()
-	pairHandlers := Handler{processor: Processor{db}}
+	pairHandlers := NewHandler(NewProcessor(db))
 	router.Post("/", pairHandlers.PostHandler)
 	return router
 }

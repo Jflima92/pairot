@@ -1,20 +1,23 @@
 package pairing
 
 import (
-	"fmt"
 	"math/rand"
-	"net/url"
 	"pairot/persistence"
-	"strings"
 	"time"
 )
 
-type Processor struct {
+type PairProcessor struct {
 	db persistence.DB
 }
 
-func (p *Processor) Process(form url.Values) SlackResponse {
-	teamName := getTeamNameFromRequest(form)
+func NewProcessor(db persistence.DB) Processor {
+	return &PairProcessor{
+		db: db,
+	}
+}
+
+func (p *PairProcessor) Process(input Input) SlackResponse {
+	teamName := input.TeamName
 	dbTeam, err := p.db.FindTeamByName(teamName)
 
 	if err != nil {
@@ -25,84 +28,80 @@ func (p *Processor) Process(form url.Values) SlackResponse {
 		if err != nil {
 			return createSlackErrorResponse("Error while looking for team")
 		}
-		teamPairs := getTeamPairs(team)
-		updatedTeamMembers := updateTeam(teamPairs).Members
+		teamPairs := p.getTeamPairs(team)
+		updatedTeamMembers := p.updateTeam(teamPairs).Members
 		updError := p.db.UpdateTeamMembers(teamName, updatedTeamMembers)
 		if updError != nil {
 			return createSlackErrorResponse("Error updating team")
 		}
-		return convertToSlackResponse(teamPairs)
+		return createSlackResponse(teamPairs)
 	}
 }
 
-func getTeamNameFromRequest(form url.Values) string {
-	var teamName string
-
-	for key, value := range form {
-		if key == "channel_name" {
-			teamName = value[0]
-		}
-	}
-
-	teamNameWords := strings.Split(teamName, "-")
-	if teamNameWords[0] == "team" {
-		teamName = strings.Title(teamNameWords[1])
-	} else
-	{
-		teamName = "Falcon"
-	}
-
-	return teamName
-}
-
-func createSlackErrorResponse(msg string) SlackResponse {
-	return SlackResponse{
-		ResponseType: "ephemeral",
-		Text:         msg,
-	}
-}
-
-func convertToSlackResponse(pairs [][]Member) SlackResponse {
-	var response SlackResponse
-	var attachments = make([]SlackAttachment, len(pairs))
-	response.ResponseType = "ephemeral"
-	response.Text = "Here are today's pairs:"
-
-	for i := 0; i < len(pairs); i++ {
-		var attachmentText string
-		if len(pairs[i]) == 2 {
-			attachmentText = fmt.Sprintf("%s - %s", pairs[i][0].Name, pairs[i][1].Name)
-		} else {
-			attachmentText = fmt.Sprintf("%s", pairs[i][0].Name)
-		}
-		attachments[i].Text = attachmentText
-	}
-
-	response.Attachments = attachments
-	return response
-}
-
-func getTeamPairs(team Team) [][]Member {
-	rand.Seed(time.Now().UnixNano())
+func (p *PairProcessor) getTeamPairs(team Team) [][]Member {
 	members := team.Members
-	shuffledMembers := shuffle(members)
+	shuffledMembers := p.shuffleTeam(members)
+	locked, unlocked := p.splitTeam(shuffledMembers)
 
+	ls := len(locked)
+	us := len(unlocked)
 	var pairs [][]Member
-	for i := 0; i < len(members); i = i + 2 {
-		var pair []Member
-		if i == len(members)-1 && i+1%2 != 0 {
-			pair = []Member{shuffledMembers[i]}
-		} else {
-			pair = []Member{shuffledMembers[i], shuffledMembers[i+1]}
-		}
-
-		pairs = append(pairs, pair)
+	if ls > us {
+		// Locked is bigger than unlocked
+		p.generatePairsBasedOnSizes(us, ls, unlocked, locked, &pairs)
+	} else if ls < us {
+		// Locked is bigger than unlocked
+		p.generatePairsBasedOnSizes(ls, us, locked, unlocked, &pairs)
+	} else {
+		// Both are the same size
+		p.generatePairs(us, locked, unlocked, &pairs)
 	}
 
 	return pairs
 }
 
-func shuffle(members []Member) []Member {
+func (p *PairProcessor) generatePairsBasedOnSizes(smallestLength int, biggestLength int, smallestSlice []Member, biggestSlice []Member, pairs *[][]Member) {
+	// Generate pairs until smallestSlice is over
+	p.generatePairs(smallestLength, smallestSlice, biggestSlice, pairs)
+
+	// Continue generating pairs with only the biggest slice if still enough members
+	if biggestLength-smallestLength > 1 {
+		for u := smallestLength; u < biggestLength; u = u + 2 {
+			var pair []Member
+			if u == len(biggestSlice)-1 && (u+1)%2 != 0 {
+				pair = []Member{biggestSlice[u]}
+			} else {
+				pair = []Member{biggestSlice[u], biggestSlice[u+1]}
+			}
+			*pairs = append(*pairs, pair)
+		}
+	} else {
+		*pairs = append(*pairs, []Member{biggestSlice[biggestLength-1]})
+	}
+}
+
+func (p *PairProcessor) generatePairs(us int, locked []Member, unlocked []Member, pairs *[][]Member) {
+	for i := 0; i < us; i++ {
+		lm := locked[i]
+		um := unlocked[i]
+		*pairs = append(*pairs, []Member{lm, um})
+	}
+}
+
+func (p *PairProcessor) splitTeam(team []Member) (locked []Member, unlocked []Member) {
+	var l []Member
+	var u []Member
+	for _, m := range team {
+		if m.Locked {
+			l = append(l, m)
+		} else {
+			u = append(u, m)
+		}
+	}
+	return l, u
+}
+
+func (p *PairProcessor) shuffleTeam(members []Member) []Member {
 	r := rand.New(rand.NewSource(time.Now().Unix()))
 	ret := make([]Member, len(members))
 	perm := r.Perm(len(members))
@@ -112,23 +111,25 @@ func shuffle(members []Member) []Member {
 	return ret
 }
 
-func updateTeam(members [][]Member) Team {
+func (p *PairProcessor) updateTeam(members [][]Member) Team {
 	var team Team
 	for i := 0; i < len(members); i++ {
 		pair := members[i]
+		left := pair[0]
 		if len(pair) == 2 {
+			right := pair[1]
 			r := rand.New(rand.NewSource(time.Now().Unix()))
-			if pair[0].Locked == false && pair[1].Locked == false {
+			if left.Locked == false && right.Locked == false {
 				v := r.Intn(2)
 				pair[v].Locked = true
 			} else {
-				pair[0].Locked = !pair[0].Locked
-				pair[1].Locked = !pair[1].Locked
+				left.Locked = !left.Locked
+				right.Locked = !right.Locked
 			}
-			team.Members = append(team.Members, pair[0])
-			team.Members = append(team.Members, pair[1])
+			team.Members = append(team.Members, left)
+			team.Members = append(team.Members, right)
 		} else {
-			team.Members = append(team.Members, pair[0])
+			team.Members = append(team.Members, left)
 		}
 	}
 	return team
